@@ -1,17 +1,18 @@
 # LAST-Stack
 This is the last stack you need.
 
-Der Stack besteht aus folgenden Komponenten:
+The stack consists of the following components:
 **L**eptos
 **A**xum
 **S**urrealDB
 **T**auri
 Thaw
 
-Die Microservice-Architektur mit docker/podman:
-- SurrealDB-Datenbankinstanz
+The microservice architecture with docker/podman:
+- SurrealDB-database instance
 - Apache Kafka
 - Apache Zookeeper
 
-  Blockdiagram
+
+  **block diagram**
   <img width="1568" height="367" alt="image" src="https://github.com/user-attachments/assets/f9fcac30-d06c-4e27-be3b-f35c55702a5f" />
