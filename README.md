@@ -1,5 +1,5 @@
 # LAST-Stack
-This is the last stack you need.
+This is the last rust stack you need.
 The stack consists of the following components:
 - **L**eptos
 - **A**xum
