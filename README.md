@@ -1,2 +1,2 @@
 # LAST-Stack
-This is the last Stack you need.
+This is the last stack you need.
