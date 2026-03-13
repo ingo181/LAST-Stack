@@ -198,6 +198,7 @@ Release profile uses `opt-level = "z"`, `lto = true`, and `strip = true` for min
 
 - [Let's Get Rusty – RSTY Stack](https://letsgetrusty.com)
 - [Digital Frontiers – Microservices in Rust](https://digitalfrontiers.de)
+- [WhiteSponge – How to Build A Full Stack Rust Dashboard App with Leptos, Actix Web & SurrealDB (Full Tutorial)](https://www.youtube.com/watch?v=) *(YouTube)*
 - [Leptos Book](https://leptos-rs.github.io/leptos/)
 - [Axum Examples](https://github.com/tokio-rs/axum/tree/main/examples)
 - [SurrealDB Rust SDK](https://surrealdb.com/docs/sdk/rust)
