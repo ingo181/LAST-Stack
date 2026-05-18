@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = [
+    "shared",
+    "server",
+    "apps/task-mgmt",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Ingo <ingo181>"]
+license = "MIT"
+
+[workspace.dependencies]
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web Framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "compression-gzip", "trace"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+surrealdb = "2"
+
+# Kafka
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+
+# Error Handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utils
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
