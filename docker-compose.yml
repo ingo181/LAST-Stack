@@ -1,1 +1,142 @@
+version: "3.9"
 
+networks:
+  last-net:
+    driver: bridge
+
+volumes:
+  surreal-primary-data:
+  surreal-replica-data:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
+  cargo-cache:
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: last-zookeeper
+    restart: unless-stopped
+    networks: [last-net]
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: last-kafka
+    restart: unless-stopped
+    networks: [last-net]
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 168
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: last-kafka-init
+    networks: [last-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      "
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic order.events --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notifications --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic auth.events --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic dead.letter --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    restart: on-failure
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: last-kafka-ui
+    restart: unless-stopped
+    networks: [last-net]
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: last-stack
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  surreal-primary:
+    image: surrealdb/surrealdb:latest
+    container_name: last-surreal-primary
+    restart: unless-stopped
+    networks: [last-net]
+    ports:
+      - "8000:8000"
+    volumes:
+      - surreal-primary-data:/data
+    command:
+      - start
+      - --log=debug
+      - --user=${SURREAL_USER:-root}
+      - --pass=${SURREAL_PASS:-root}
+      - surrealkv:/data/primary.db
+    environment:
+      SURREAL_CAPS_ALLOW_ALL: "true"
+    healthcheck:
+      test: ["CMD", "/surreal", "isready", "--conn", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  surreal-replica:
+    image: surrealdb/surrealdb:latest
+    container_name: last-surreal-replica
+    restart: unless-stopped
+    networks: [last-net]
+    ports:
+      - "8001:8000"
+    volumes:
+      - surreal-replica-data:/data
+    command:
+      - start
+      - --log=info
+      - --user=${SURREAL_USER:-root}
+      - --pass=${SURREAL_PASS:-root}
+      - surrealkv:/data/replica.db
+    depends_on:
+      surreal-primary:
+        condition: service_healthy
