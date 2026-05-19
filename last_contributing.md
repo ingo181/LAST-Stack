@@ -54,7 +54,7 @@ When filing a bug, include as much detail as possible:
 - **Steps to reproduce** — the exact sequence of actions that triggers the bug
 - **Expected behaviour** — what you expected to happen
 - **Actual behaviour** — what actually happened
-- **Environment** — OS, Rust version (`rustc --version`), Docker version
+- **Environment** — OS, Rust version (`rustc --version`), Docker/Podman version
 - **Logs** — relevant output from `cargo run` or `docker compose logs`
 
 Use the **Bug Report** issue template when available.
@@ -114,29 +114,30 @@ PRs are merged by a maintainer once they pass CI and receive at least one approv
 
 ## Development Setup
 
-The fastest way to get started is with the included Dev Container. See the [README](README.md#getting-started) for full instructions.
+The fastest way to get started is with the included Dev Container. See the [README](last_readme.md#getting-started) for full instructions.
 
 ### Manual setup (without Dev Container)
 
 ```bash
-# Rust stable + WASM target
-rustup update stable
+# Rust nightly + WASM target
+rustup toolchain install nightly
+rustup default nightly
 rustup target add wasm32-unknown-unknown
 
-# Leptos build tool
-cargo install trunk
+# Leptos build tools
+cargo install trunk cargo-leptos wasm-bindgen-cli
 
 # Live reloading
 cargo install cargo-watch
 
-# Start infrastructure
-docker compose up zookeeper kafka surrealdb -d
+# Start infrastructure (Kafka KRaft + SurrealDB — no Zookeeper needed)
+docker compose up kafka kafka-init surreal-primary -d
 ```
 
 ### Running a single service
 
 ```bash
-cargo watch -x "run --bin todo-service"
+cargo watch -x "run -p user-service"
 ```
 
 ### Running all tests
@@ -144,6 +145,23 @@ cargo watch -x "run --bin todo-service"
 ```bash
 cargo test --workspace
 ```
+
+### Kafka KRaft note
+
+The project uses Kafka in **KRaft mode** — Zookeeper is not required and not part of the stack. If you encounter legacy documentation referring to Zookeeper, it does not apply here. The `KAFKA_CLUSTER_ID` environment variable must be set once when the Kafka volume is first created; do not change it afterwards.
+
+### Multi-tenancy note
+
+All services expect a `TenantContext` to be present on every authenticated request. The gateway extracts `tenant_id` from the JWT and injects it as an Axum request extension. When writing new handlers, always accept `Extension(tenant): Extension<TenantContext>` and pass `tenant.id` to every SurrealDB query and Kafka message. Omitting the tenant context in a handler is a bug.
+
+### Scalability note
+
+Services must remain **stateless**. Do not introduce:
+- In-memory caches that differ between instances
+- Local file system state
+- Hard-coded hostnames or ports
+
+Configuration belongs in environment variables. Secrets belong in Docker Secrets or Kubernetes Secrets — never in the image or source code.
 
 ---
 
@@ -168,10 +186,11 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 **Examples:**
 
 ```
-feat(todo-service): add pagination to list endpoint
+feat(user-service): add pagination to list endpoint
 fix(kafka): handle reconnect on broker timeout
 docs(readme): clarify dev container setup steps
 chore(deps): update axum to 0.7.5
+refactor(gateway): extract tenant context into middleware
 ```
 
 - Use the **imperative mood** in the summary: "add", not "added" or "adds"
@@ -206,9 +225,13 @@ New code should introduce zero Clippy warnings. If suppressing a lint with `#[al
 
 - Prefer explicit error handling over `.unwrap()` — use `?` and proper error types from `shared::errors`
 - Write `async` code with Tokio; avoid blocking calls on async threads
-- Keep service boundaries clear — a service should not import another service's crate directly, only `shared`
+- Keep service boundaries clear — a service must not import another service's crate directly, only `shared`
+- Every service must implement `/health` (liveness) and `/ready` (readiness) endpoints
+- Every service must handle `SIGTERM` gracefully — wait for in-flight requests before exiting
 - Add a doc comment (`///`) to every public function, struct, and trait
 - Tests live in a `#[cfg(test)]` module at the bottom of the file they test, or in `tests/` for integration tests
+- Every Kafka message must include `tenant_id` in the event envelope
+- Never store tenant state locally in a service — all tenancy context comes from the JWT via `TenantContext`
 
 ---
 
@@ -221,6 +244,9 @@ Before marking a PR as ready for review, confirm that all of the following are t
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
 - [ ] `cargo test --workspace` passes
 - [ ] New behaviour is covered by at least one test
+- [ ] New handlers accept and propagate `TenantContext`
+- [ ] No new in-process state that would break horizontal scaling
+- [ ] `/health` and `/ready` still return correctly after my changes
 - [ ] Public APIs and non-obvious logic have doc comments
 - [ ] The PR description explains *what* changed and *why*
 - [ ] Related issues are referenced (`Closes #...`)

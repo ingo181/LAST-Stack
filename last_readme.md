@@ -9,7 +9,7 @@
 [![Tauri](https://img.shields.io/badge/Tauri-1.x-purple)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-A production-inspired, end-to-end Rust stack demonstrating a **Todo application** built on a microservice architecture with async messaging via Apache Kafka. Inspired by the [RSTY Stack](https://letsgetrusty.com) and the microservice patterns from the *Digital Frontiers Rust Book*.
+A production-inspired, end-to-end Rust stack demonstrating a **Todo application** built on a microservice architecture with async messaging via Apache Kafka in **KRaft mode** (no Zookeeper). Inspired by the [RSTY Stack](https://letsgetrusty.com) and the microservice patterns from the *Digital Frontiers Rust Book*.
 
 ---
 
@@ -22,40 +22,82 @@ A production-inspired, end-to-end Rust stack demonstrating a **Todo application*
 | **S** | [SurrealDB](https://surrealdb.com) | Multi-model database (SQL + graph + realtime) |
 | **T** | [Tauri](https://tauri.app) + [Thaw UI](https://thaw.rs) / [Floem](https://github.com/lapce/floem) | Desktop shell & native UI |
 
-**Infrastructure:** Apache Kafka · Zookeeper · Dev Container (all-in-one)
+**Message bus:** Apache Kafka (KRaft — no Zookeeper)  
+**Dev environment:** Dev Container (all-in-one)
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-Browser (Leptos WASM)
-        │  REST / WebSocket
-        ▼
-  ┌─────────────┐        ┌─────────────────────────────┐
-  │ API Gateway │──pub──▶│         Kafka Bus           │
-  │  Axum :8080 │        │  todos.created              │
-  └──────┬──────┘        │  todos.updated              │
-         │ sync REST      │  todos.deleted              │
-         ▼               │  audit.events               │
-  ┌─────────────┐        │  notifications              │
-  │ Todo Service│◀──sub──│                             │
-  │  Axum :8081 │        │  [Zookeeper coordination]   │
-  └──────┬──────┘        └──────────┬──────────────────┘
-         │                          │
-         ▼                 ┌────────┴────────┐
-    SurrealDB               │                │
-      :8000            ┌────▼────┐     ┌─────▼──────┐
-                       │ Notify  │     │   Audit    │
-                       │ Service │     │  Service   │
-                       │ :8082   │     │  :8083     │
-                       └────┬────┘     └─────┬──────┘
-                            │ WebSocket       │
-                            ▼                ▼
-                         Browser          SurrealDB
+Browser (Leptos WASM)          Desktop (Tauri + Floem/Thaw UI)
+        │  REST / WebSocket               │
+        └──────────────┬──────────────────┘
+                       ▼
+             ┌─────────────────┐
+             │   API Gateway   │  JWT auth · CORS · TenantContext
+             │   Axum :8080    │  X-Tenant-ID → tenant_id per request
+             └────────┬────────┘
+                      │ sync REST + event publish
+          ┌───────────┼────────────┐
+          ▼           ▼            ▼
+    user-service  order-service  notify-service  …(add more)
+     Axum :8081    Axum :8082    Axum :8083
+          │           │            ▲
+          └─────┬─────┘            │ consume
+                ▼                  │
+         ┌─────────────┐           │
+         │    Kafka    │───────────┘
+         │   (KRaft)   │  user.events · order.events
+         │   :9092     │  notifications · dead.letter
+         └─────────────┘
+                │
+     ┌──────────┴──────────────────┐
+     ▼                             ▼
+SurrealDB Primary            SurrealDB Replica
+    :8000                        :8001
+ns=last  db=tenant_{id}       (read traffic)
 ```
 
-Each service is a standalone Rust binary in a shared Cargo workspace. All inter-service communication is **async via Kafka topics**. The API gateway handles synchronous REST calls to the todo service and publishes events to Kafka for everything else.
+Each service is a standalone Rust binary in a shared Cargo workspace. Inter-service communication is **async via Kafka topics**. The API gateway handles synchronous REST calls and publishes domain events for all state changes.
+
+---
+
+## 🔐 Multi-tenancy
+
+Tenant isolation is a first-class concern, built in from the start:
+
+- Every JWT carries a `tenant_id` claim (and a reserved `locale` field for future i18n).
+- The gateway middleware extracts `tenant_id` into a `TenantContext` Axum extension — no service needs to parse the JWT again.
+- SurrealDB isolates tenants at the **database level**: `use ns "last" db "tenant_{id}"`. No extra discriminator columns are needed.
+- All Kafka messages include `tenant_id` in the event envelope.
+
+Adding a new tenant requires no code changes — only provisioning a new SurrealDB database and issuing a JWT with the correct claim.
+
+---
+
+## 🌍 Internationalisation (i18n)
+
+Planned for a post-MVP increment. The `shared` crate already reserves a `locale` field in `TenantContext` and JWT claims, so no structural changes will be needed later. The frontend will use [Fluent](https://projectfluent.org) via the Leptos integration for runtime locale switching.
+
+---
+
+## 📐 Scalability
+
+All services are **stateless by design**:
+
+| Concern | Solution |
+|---------|----------|
+| Session state | JWT only — no server-side sessions |
+| Horizontal scaling | Kafka consumer groups, multiple instances share partitions |
+| Read scaling | SurrealDB replica for read traffic |
+| Configuration | Environment variables and mounted secrets only |
+| Liveness | `/health` endpoint on every service |
+| Readiness | `/ready` endpoint — only healthy after DB + Kafka connected |
+| Graceful shutdown | `SIGTERM` handler — in-flight requests complete before exit |
+| Resource limits | CPU/memory defined in `docker-compose.yml` deploy blocks |
+
+The compose file uses `deploy:` blocks compatible with `docker stack deploy` (Swarm). Kubernetes manifests are in `k8s/` — one `Deployment`, `Service`, `ConfigMap`, and `Secret` per microservice.
 
 ---
 
@@ -63,38 +105,32 @@ Each service is a standalone Rust binary in a shared Cargo workspace. All inter-
 
 ```
 last-stack/
-├── Cargo.toml                  # Workspace root
+├── Cargo.toml                   # Workspace root
 ├── Cargo.lock
-├── docker-compose.yml          # Kafka, Zookeeper, SurrealDB, dev container
-├── Dockerfile.dev
+├── docker-compose.yml           # Kafka (KRaft), SurrealDB, services
 ├── .devcontainer/
-│   └── devcontainer.json
-│
-├── shared/                     # Common types shared across all services
-│   └── src/
-│       ├── lib.rs
-│       ├── models.rs           # Todo, User structs
-│       ├── events.rs           # Kafka event types
-│       └── errors.rs
-│
-├── services/
-│   ├── api-gateway/            # Entry point, routing, auth, rate limiting
-│   ├── todo-service/           # CRUD operations, SurrealDB, Kafka producer
-│   ├── notification-service/   # Kafka consumer, WebSocket push
-│   └── audit-service/         # Kafka consumer, event logging
-│
-├── frontend/                   # Leptos WASM app
-│   └── src/
-│       ├── app.rs
-│       └── components/
-│           ├── todo_list.rs
-│           ├── todo_item.rs
-│           └── add_form.rs
-│
-└── desktop/                    # Tauri + Thaw UI / Floem
-    └── src/
-        ├── main.rs
-        └── ui.rs
+│   ├── devcontainer.json
+│   └── setup.sh                 # Toolchain bootstrap (runs once)
+├── infra/
+│   ├── Dockerfile.service       # Dev image with cargo-watch
+│   ├── kafka/                   # KRaft config
+│   └── surreal/                 # Schema migrations
+├── k8s/                         # Kubernetes manifests
+│   ├── gateway/
+│   ├── user-service/
+│   ├── order-service/
+│   ├── notify-service/
+│   └── surrealdb/
+├── crates/
+│   ├── shared/                  # Common types, errors, traits, Kafka events
+│   ├── gateway/                 # JWT middleware, CORS, reverse proxy
+│   ├── user-service/            # Users, auth, SurrealDB, Kafka producer
+│   ├── order-service/           # Orders, SurrealDB, Kafka producer
+│   ├── notify-service/          # Kafka consumer, WebSocket push
+│   ├── frontend/                # Leptos WASM app
+│   └── desktop/                 # Tauri + Floem/Thaw UI
+└── docs/
+    └── architecture.md
 ```
 
 ---
@@ -103,7 +139,7 @@ last-stack/
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com) & [Docker Compose](https://docs.docker.com/compose/)
+- [Docker](https://www.docker.com) or [Podman](https://podman.io) with Compose
 - [VS Code](https://code.visualstudio.com) with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 ### 1. Clone & open in Dev Container
@@ -116,37 +152,41 @@ code .
 ```
 
 The container automatically installs:
-- Rust stable + `wasm32-unknown-unknown` target
-- `trunk` (Leptos build tool)
+- Rust nightly + `wasm32-unknown-unknown` target
+- `trunk` and `cargo-leptos` (Leptos build tools)
 - `cargo-watch` for live reloading
-- Kafka, Zookeeper, SurrealDB as companion services
+- `wasm-bindgen-cli`
+- SurrealDB CLI
+- Kafka CLI tools
 
-### 2. Start all services
-
-Open separate terminals for each service (or use a process manager like `cargo-run-script`):
+### 2. Start infrastructure
 
 ```bash
-# API Gateway
-cargo watch -x "run --bin api-gateway"
-
-# Todo Service
-cargo watch -x "run --bin todo-service"
-
-# Notification Service
-cargo watch -x "run --bin notification-service"
-
-# Audit Service
-cargo watch -x "run --bin audit-service"
-
-# Leptos Frontend
-cd frontend && trunk serve
+docker compose up -d
+# Starts: Kafka (KRaft), SurrealDB primary + replica, Kafka UI
 ```
 
-### 3. Open the app
+### 3. Start services
 
+```bash
+# Each in its own terminal, or use a multiplexer like tmux/zellij
+cargo watch -x "run -p gateway"
+cargo watch -x "run -p user-service"
+cargo watch -x "run -p order-service"
+cargo watch -x "run -p notify-service"
+
+# Leptos frontend
+cd crates/frontend && trunk serve
 ```
-http://localhost:8080
-```
+
+### 4. Open the app
+
+| URL | What |
+|-----|------|
+| `http://localhost:3000` | Leptos frontend |
+| `http://localhost:8080` | API gateway |
+| `http://localhost:8090` | Kafka UI |
+| `http://localhost:8000` | SurrealDB (Surrealist) |
 
 ---
 
@@ -155,13 +195,18 @@ http://localhost:8080
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `KAFKA_BROKERS` | `kafka:29092` | Kafka bootstrap servers |
-| `SURREAL_URL` | `ws://surrealdb:8000` | SurrealDB WebSocket URL |
+| `KAFKA_CLUSTER_ID` | *(generated)* | KRaft cluster ID (set once, never change) |
+| `SURREAL_URL` | `ws://surreal-primary:8000` | SurrealDB WebSocket URL |
 | `SURREAL_USER` | `root` | SurrealDB username |
 | `SURREAL_PASS` | `root` | SurrealDB password |
-| `GATEWAY_PORT` | `8080` | API Gateway port |
-| `TODO_SERVICE_PORT` | `8081` | Todo Service port |
-| `NOTIFY_PORT` | `8082` | Notification Service port |
-| `AUDIT_PORT` | `8083` | Audit Service port |
+| `SURREAL_NS` | `last` | SurrealDB namespace |
+| `JWT_SECRET` | *(required)* | HMAC secret for JWT signing |
+| `GATEWAY_PORT` | `8080` | API gateway port |
+| `USER_SERVICE_PORT` | `8081` | User service port |
+| `ORDER_SERVICE_PORT` | `8082` | Order service port |
+| `NOTIFY_SERVICE_PORT` | `8083` | Notify service port |
+
+Copy `.env.example` to `.env` for local development. Never commit `.env` with real secrets.
 
 ---
 
@@ -172,9 +217,9 @@ http://localhost:8080
 cargo test --workspace
 
 # A specific service
-cargo test --package todo-service
+cargo test -p user-service
 
-# With output
+# With log output
 cargo test --workspace -- --nocapture
 ```
 
@@ -183,14 +228,24 @@ cargo test --workspace -- --nocapture
 ## 🏭 Production Build
 
 ```bash
-# Optimised release binaries (size + LTO)
+# Optimised release binaries
 cargo build --release --workspace
 
 # Frontend WASM bundle
-cd frontend && trunk build --release
+cd crates/frontend && trunk build --release
 ```
 
-Release profile uses `opt-level = "z"`, `lto = true`, and `strip = true` for minimal binary sizes.
+### Docker Swarm
+
+```bash
+docker stack deploy -c docker-compose.yml last-stack
+```
+
+### Kubernetes
+
+```bash
+kubectl apply -f k8s/
+```
 
 ---
 
@@ -198,22 +253,17 @@ Release profile uses `opt-level = "z"`, `lto = true`, and `strip = true` for min
 
 - [Let's Get Rusty – RSTY Stack](https://letsgetrusty.com)
 - [Digital Frontiers – Microservices in Rust](https://digitalfrontiers.de)
-- [WhiteSponge – How to Build A Full Stack Rust Dashboard App with Leptos, Actix Web & SurrealDB (Full Tutorial)](https://www.youtube.com/watch?v=) *(YouTube)*
 - [Leptos Book](https://leptos-rs.github.io/leptos/)
 - [Axum Examples](https://github.com/tokio-rs/axum/tree/main/examples)
 - [SurrealDB Rust SDK](https://surrealdb.com/docs/sdk/rust)
 - [Tauri Guides](https://tauri.app/v1/guides/)
+- [Kafka KRaft documentation](https://kafka.apache.org/documentation/#kraft)
 
 ---
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to open an issue or submit a pull request.
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Commit your changes: `git commit -m "feat: add my feature"`
-4. Push and open a PR
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
