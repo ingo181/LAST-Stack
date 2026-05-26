@@ -1,0 +1,47 @@
+{
+  "name": "LAST Stack Dev",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "dev",
+
+  "features": {},
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml",
+        "serayuzgur.crates",
+        "fill-labs.dependi",
+        "leptosfmt.leptosfmt"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.check.command": "clippy"
+      }
+    }
+  },
+
+  "postStartCommand": "echo '✅ LAST Stack Dev Container ready'",
+
+  "forwardPorts": [
+    3000,
+    8081,
+    8000,
+    8080,
+    8090,
+    9092
+  ],
+
+  "portsAttributes": {
+    "3000": { "label": "Frontend (trunk)" },
+    "8081": { "label": "apqp-service (Axum)" },
+    "8000": { "label": "SurrealDB" },
+    "8080": { "label": "Surrealist UI" },
+    "8090": { "label": "Kafka UI" },
+    "9092": { "label": "Kafka" }
+  }
+}

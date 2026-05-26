@@ -7,6 +7,9 @@ volumes:
   surreal-replica-data:
   kafka-data:
   cargo-cache:
+  cargo-registry:
+  cargo-git:
+  cargo-target:
 
 services:
 
@@ -120,3 +123,40 @@ services:
       - "8080:8080"
     depends_on:
       - surreal-primary
+
+  # ── Dev Container ────────────────────────────────────────────
+  # Wird von devcontainer.json als "service" referenziert.
+  # Läuft nur während der Entwicklung — nicht in Produktion.
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    container_name: last-dev
+    restart: "no"
+    networks: [last-net]
+    volumes:
+      # Workspace — live gemountet
+      - .:/workspace:cached
+      # Cargo Registry Cache — überlebt Container-Neustarts
+      - cargo-registry:/home/dev/.cargo/registry
+      - cargo-git:/home/dev/.cargo/git
+      # Target Cache — verhindert Neu-Kompilierung bei jedem Start
+      - cargo-target:/workspace/target
+    environment:
+      SURREAL_URL:  ws://surreal-primary:8000
+      SURREAL_USER: ${SURREAL_USER:-root}
+      SURREAL_PASS: ${SURREAL_PASS:-root}
+      SURREAL_NS:   opcaq
+      APQP_PORT:    "8081"
+      RUST_LOG:     "apqp_service=debug,tower_http=info"
+      KAFKA_BROKERS: last-kafka:29092
+    ports:
+      - "3000:3000"   # trunk (Leptos frontend)
+      - "8081:8081"   # apqp-service
+    depends_on:
+      - surreal-primary
+      - kafka
+    command: sleep infinity
