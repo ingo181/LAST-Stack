@@ -56,3 +56,7 @@ dotenvy = "0.15"
 opt-level = "z"   # minimize binary size
 lto       = true
 strip     = true
+
+# Leptos (CSR) — für frontend crate
+leptos        = { version = "0.7", features = ["csr"] }
+leptos_router = { version = "0.7" }

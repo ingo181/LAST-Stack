@@ -54,10 +54,16 @@ pub mod api {
     /// Query parameters for list endpoints.
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Pagination {
-        #[serde(default = "default_page")]
+        #[serde(default = "default_page", deserialize_with = "deserialize_u32")]
         pub page:      u32,
-        #[serde(default = "default_page_size")]
+        #[serde(default = "default_page_size", deserialize_with = "deserialize_u32")]
         pub page_size: u32,
+    }
+
+    fn deserialize_u32<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+        use serde::de::IntoDeserializer;
+        let s = String::deserialize(d)?;
+        s.parse::<u32>().map_err(serde::de::Error::custom)
     }
 
     fn default_page()      -> u32 { 1 }

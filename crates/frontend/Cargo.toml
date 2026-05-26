@@ -1,8 +1,39 @@
 [package]
-name = "task-mgmt"
+name    = "task-mgmt"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+# Shared domain types
 shared = { workspace = true }
-serde = { workspace = true }
+
+# Leptos CSR — same binary runs in browser and Tauri WebView
+leptos         = { version = "0.7", features = ["csr"] }
+leptos_router  = { version = "0.7" }
+
+# Thaw UI 0.4 — Fluent Design, compatible with Leptos 0.7
+thaw = "0.4.8"
+
+# HTTP client (Fetch API via WASM)
+gloo-net = { version = "0.6", features = ["http"] }
+reactive_graph = "0.1"
+
+# Serialisation
+serde      = { workspace = true }
+serde_json = { workspace = true }
+
+# Date / time (WASM-compatible)
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+
+# Logging in browser console
+log         = "0.4"
+console_log = "1"
+console_error_panic_hook = "0.1"
+
+# Icons (used by Thaw UI)
+icondata = "0.3"
+icondata_core = "0.1"
+wasm-bindgen = "0.2.122"
