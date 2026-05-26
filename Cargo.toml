@@ -1,9 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "shared",
-    "server",
-    "apps/task-mgmt",
+    "crates/shared",
+    "crates/gateway",
+    "crates/apqp-service",
+    "crates/notify-service",
+    "crates/frontend",
+    "crates/desktop",
 ]
 
 [workspace.package]
@@ -13,32 +16,43 @@ authors = ["Ingo <ingo181>"]
 license = "MIT"
 
 [workspace.dependencies]
-# Async Runtime
-tokio = { version = "1", features = ["full"] }
+# Shared crate
+shared = { path = "crates/shared" }
 
-# Web Framework
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "compression-gzip", "trace"] }
+# Async runtime
+tokio = { version = "1.52", features = ["full"] }
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Web framework
+axum       = { version = "0.8", features = ["macros"] }
+tower      = "0.5"
+tower-http = { version = "0.6", features = ["cors", "compression-gzip", "trace"] }
 
-# Database
-surrealdb = "2"
+# Serialisation
+serde      = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
-# Kafka
-rdkafka = { version = "0.36", features = ["cmake-build"] }
+# Database — version aligned with your installed surrealdb
+surrealdb = "3.0"
 
-# Error Handling
-thiserror = "1"
-anyhow = "1"
+# Messaging
+rdkafka = { version = "0.39", features = ["cmake-build"] }
 
-# Logging
-tracing = "0.1"
+# Error handling
+thiserror = "2.0"
+anyhow    = "1.0"
+
+# Logging / tracing
+tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Utils
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid   = { version = "1.23", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+
+# Config
+dotenvy = "0.15"
+
+[profile.release]
+opt-level = "z"   # minimize binary size
+lto       = true
+strip     = true

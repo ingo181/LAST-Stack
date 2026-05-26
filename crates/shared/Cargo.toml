@@ -1,0 +1,18 @@
+[package]
+name    = "shared"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Serialisation — used by all consumers
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+
+# Date / time — UTC everywhere
+chrono      = { version = "0.4", features = ["serde"] }
+
+# UUIDs for event_id and tenant_id
+uuid        = { version = "1.23", features = ["v4", "serde"] }
+
+# Error handling
+thiserror   = "2.0"

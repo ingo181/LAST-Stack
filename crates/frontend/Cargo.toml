@@ -1,0 +1,8 @@
+[package]
+name = "task-mgmt"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shared = { workspace = true }
+serde = { workspace = true }
