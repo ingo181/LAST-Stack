@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     libsasl2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN rustup target add wasm32-unknown-unknown
+RUN rustup target add wasm32-unknown-unknown && rustup component add rust-src
 RUN cargo install trunk cargo-watch
 
 ARG UID=1000
@@ -18,10 +18,11 @@ ARG GID=1000
 RUN groupadd -g ${GID} dev && \
     useradd -u ${UID} -g dev -m -s /bin/bash dev
 
+RUN chown -R ${UID:-1000}:${GID:-1000} /usr/local/cargo
 USER dev
 WORKDIR /workspace
 
-ENV CARGO_HOME=/home/dev/.cargo
-ENV PATH="/home/dev/.cargo/bin:${PATH}"
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:${PATH}"
 
 CMD ["sleep", "infinity"]

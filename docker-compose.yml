@@ -139,7 +139,6 @@ services:
     networks: [last-net]
     volumes:
       # Workspace — live gemountet
-      - .:/workspace:cached
       # Cargo Registry Cache — überlebt Container-Neustarts
       - cargo-registry:/home/dev/.cargo/registry
       - cargo-git:/home/dev/.cargo/git
