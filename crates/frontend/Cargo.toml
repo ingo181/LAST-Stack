@@ -19,6 +19,7 @@ thaw = "0.4.8"
 
 # HTTP client (Fetch API via WASM)
 gloo-net = { version = "0.6", features = ["http"] }
+web-sys = { version = "0.3", features = ["HtmlInputElement"] }
 reactive_graph = "0.1"
 
 # Serialisation

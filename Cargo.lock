@@ -5140,6 +5140,7 @@ dependencies = [
  "shared",
  "thaw",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
