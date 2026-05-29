@@ -101,7 +101,7 @@ pub async fn list_tasks(
 #[instrument(skip(db))]
 pub async fn get_task(db: &Surreal<Client>, id: &str) -> Result<Task> {
     let mut res = db
-        .query("SELECT * FROM type::thing('task', $id)")
+        .query("SELECT * FROM type::record('task', $id)")
         .bind(("id".to_owned(), id.to_owned()))
         .await
         .map_err(db_err)?;
@@ -223,7 +223,7 @@ pub async fn update_task(
 
     let mut res = db
         .query(
-            "UPDATE type::thing('task', $id) MERGE {
+            "UPDATE type::record('task', $id) MERGE {
                 subject:         $subject,
                 description:     $description,
                 priority:        $priority,
@@ -303,7 +303,7 @@ pub async fn transition_status(
 
     let mut res = db
         .query(
-            "UPDATE type::thing('task', $id) MERGE {
+            "UPDATE type::record('task', $id) MERGE {
                 progress_status: $status,
                 completion:      $completion,
                 updated_at:      time::now()
@@ -354,7 +354,7 @@ pub async fn update_risk(
 
     let mut res = db
         .query(
-            "UPDATE type::thing('task', $id) MERGE {
+            "UPDATE type::record('task', $id) MERGE {
                 risk_status: $risk,
                 updated_at:  time::now()
             } RETURN AFTER",
@@ -398,7 +398,7 @@ pub async fn soft_delete(
     tenant_id: Uuid,
 ) -> Result<()> {
     db.query(
-        "UPDATE type::thing('task', $id) SET
+        "UPDATE type::record('task', $id) SET
             deleted_at = time::now(),
             updated_at = time::now()",
     )
@@ -431,7 +431,7 @@ pub async fn get_history(db: &Surreal<Client>, task_id: &str) -> Result<Vec<Task
     let mut res = db
         .query(
             "SELECT * FROM task_history
-             WHERE task_id = type::thing('task', $id)
+             WHERE task_id = type::record('task', $id)
              ORDER BY occurred_at ASC",
         )
         .bind(("id".to_owned(), task_id.to_owned()))

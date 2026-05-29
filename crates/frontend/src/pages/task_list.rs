@@ -58,6 +58,40 @@ pub fn TaskListPage() -> impl IntoView {
         create.dispatch(req);
     });
 
+    let edit_task_id = RwSignal::new(Option::<String>::None);
+    let edit_form_open = RwSignal::new(false);
+
+    let load_edit: Action<String, (), LocalStorage> = Action::new_unsync(move |id: &String| {
+        let id = id.clone();
+        async move {
+            match crate::api::get_task(&id).await {
+                Ok(task) => {
+                    edit_task_id.set(Some(task.id.clone()));
+                    edit_form_open.set(true);
+                }
+                Err(e) => { error.set(Some(e)); }
+            }
+        }
+    });
+
+    let on_edit = Callback::new(move |id: String| {
+        load_edit.dispatch(id);
+    });
+
+    let delete_action: Action<String, (), LocalStorage> = Action::new_unsync(move |id: &String| {
+        let id = id.clone();
+        async move {
+            match crate::api::delete_task(&id).await {
+                Ok(_)  => { fetch.dispatch(page.get_untracked()); }
+                Err(e) => { error.set(Some(e)); }
+            }
+        }
+    });
+
+    let on_delete = Callback::new(move |id: String| {
+        delete_action.dispatch(id);
+    });
+
     // ── View ─────────────────────────────────────────────────
     view! {
         <div class="page">
@@ -70,6 +104,8 @@ pub fn TaskListPage() -> impl IntoView {
                 loading=loading.read_only()
                 error=error.read_only()
                 on_add=Callback::new(move |_| form_open.set(true))
+                on_edit
+                on_delete
                 on_reload
             />
 
@@ -77,6 +113,26 @@ pub fn TaskListPage() -> impl IntoView {
                 open=form_open
                 on_submit
             />
+
+            // Edit Dialog — gleiche Komponente, aber mit PATCH
+            {move || edit_task_id.get().map(|id| {
+                let id_clone = id.clone();
+                view! {
+                    <TaskFormDialog
+                        open=edit_form_open
+                        on_submit=Callback::new(move |req: CreateTaskRequest| {
+                            let id = id_clone.clone();
+                            leptos::task::spawn_local(async move {
+                                match crate::api::update_task(&id, req).await {
+                                    Ok(_)  => { fetch.dispatch(page.get_untracked()); }
+                                    Err(e) => { error.set(Some(e)); }
+                                }
+                            });
+                            edit_task_id.set(None);
+                        })
+                    />
+                }
+            })}
         </div>
     }
 }

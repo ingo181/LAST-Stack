@@ -136,3 +136,8 @@ html, body {
     font-size: 13px;
     margin-bottom: 16px;
 }
+/* Action buttons in table */
+.action-buttons {
+    display: flex;
+    gap: 4px;
+}
