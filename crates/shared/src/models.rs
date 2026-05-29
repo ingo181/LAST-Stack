@@ -217,7 +217,8 @@ pub mod task {
 
     // ── Full Task record (returned from DB) ───────────────────
 
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+    #[serde(default)]
     pub struct Task {
         pub id:              String,
         pub subject:         String,
@@ -313,9 +314,10 @@ pub mod task {
     // ── Enumerations ──────────────────────────────────────────
 
     /// Internal workflow status (Fachkonzept §3.3.2)
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
     #[serde(rename_all = "snake_case")]
     pub enum ProgressStatus {
+        #[default]
         Open,
         InProgress,
         WaitingForFeedback,
@@ -386,7 +388,7 @@ pub mod task {
     }
 
     /// GYR traffic-light risk status for customer status reports (VDA Band 7)
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
     #[serde(rename_all = "snake_case")]
     pub enum RiskStatus {
         /// All targets met — no or negligible deviation
@@ -398,6 +400,7 @@ pub mod task {
         /// Target not achievable — No Go
         Red,
         /// No assessment yet
+        #[default]
         Pending,
         NotApplicable,
     }
@@ -432,10 +435,11 @@ pub mod task {
     }
 
     /// Task priority
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
     #[serde(rename_all = "snake_case")]
     pub enum Priority {
         High,
+        #[default]
         Normal,
         Low,
     }

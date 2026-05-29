@@ -59,6 +59,7 @@ pub fn TaskListPage() -> impl IntoView {
     });
 
     let edit_task_id = RwSignal::new(Option::<String>::None);
+    let edit_task_data = RwSignal::new(Option::<shared::models::task::Task>::None);
     let edit_form_open = RwSignal::new(false);
 
     let load_edit: Action<String, (), LocalStorage> = Action::new_unsync(move |id: &String| {
@@ -67,6 +68,7 @@ pub fn TaskListPage() -> impl IntoView {
             match crate::api::get_task(&id).await {
                 Ok(task) => {
                     edit_task_id.set(Some(task.id.clone()));
+                    edit_task_data.set(Some(task));
                     edit_form_open.set(true);
                 }
                 Err(e) => { error.set(Some(e)); }
@@ -114,24 +116,30 @@ pub fn TaskListPage() -> impl IntoView {
                 on_submit
             />
 
-            // Edit Dialog — gleiche Komponente, aber mit PATCH
-            {move || edit_task_id.get().map(|id| {
-                let id_clone = id.clone();
-                view! {
-                    <TaskFormDialog
-                        open=edit_form_open
-                        on_submit=Callback::new(move |req: CreateTaskRequest| {
-                            let id = id_clone.clone();
+            // Edit Dialog
+            {move || edit_task_data.get().map(|task| view! {
+                <TaskFormDialog
+                    open=edit_form_open
+                    title="Edit Task"
+                    initial_subject=task.subject.clone()
+                    initial_company=task.party_id.clone().unwrap_or_default()
+                    initial_assigned_to=task.assigned_to.clone().unwrap_or_default()
+                    initial_priority=task.priority.to_string()
+                    initial_description=task.description.clone()
+                    on_submit=Callback::new(move |req: CreateTaskRequest| {
+                        if let Some(id) = edit_task_id.get_untracked() {
                             leptos::task::spawn_local(async move {
                                 match crate::api::update_task(&id, req).await {
                                     Ok(_)  => { fetch.dispatch(page.get_untracked()); }
                                     Err(e) => { error.set(Some(e)); }
                                 }
                             });
-                            edit_task_id.set(None);
-                        })
-                    />
-                }
+                        }
+                        edit_task_id.set(None);
+                        edit_task_data.set(None);
+                        edit_form_open.set(false);
+                    })
+                />
             })}
         </div>
     }

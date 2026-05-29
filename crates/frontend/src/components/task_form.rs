@@ -8,17 +8,23 @@ use shared::models::task::{CreateTaskRequest, Priority};
 
 #[component]
 pub fn TaskFormDialog(
-    open:      RwSignal<bool>,
-    on_submit: Callback<CreateTaskRequest>,
+    open:           RwSignal<bool>,
+    on_submit:      Callback<CreateTaskRequest>,
+    #[prop(optional)] title: Option<&'static str>,
+    #[prop(optional)] initial_subject:     Option<String>,
+    #[prop(optional)] initial_company:     Option<String>,
+    #[prop(optional)] initial_assigned_to: Option<String>,
+    #[prop(optional)] initial_priority:    Option<String>,
+    #[prop(optional)] initial_description: Option<String>,
 ) -> impl IntoView {
-    let subject      = RwSignal::new(String::new());
-    let company      = RwSignal::new(String::new());
-    let assigned_to  = RwSignal::new(String::new());
-    let priority     = RwSignal::new(String::from("low"));
+    let subject      = RwSignal::new(initial_subject.unwrap_or_default());
+    let company      = RwSignal::new(initial_company.unwrap_or_default());
+    let assigned_to  = RwSignal::new(initial_assigned_to.unwrap_or_default());
+    let priority     = RwSignal::new(initial_priority.unwrap_or_else(|| "normal".into()));
     let status       = RwSignal::new(String::from("open"));
     let start_date   = RwSignal::new(String::new());
     let due_date_val = RwSignal::new(String::new());
-    let details      = RwSignal::new(String::new());
+    let details      = RwSignal::new(initial_description.unwrap_or_default());
     let error_msg    = RwSignal::new(Option::<String>::None);
 
     let reset = move || {
@@ -66,7 +72,7 @@ pub fn TaskFormDialog(
     view! {
         <Dialog open>
             <DialogSurface>
-                <DialogTitle>"New Task"</DialogTitle>
+                <DialogTitle>{title.unwrap_or("New Task")}</DialogTitle>
                 <DialogBody>
                     <div class="task-form">
                         {move || error_msg.get().map(|e| view! {
