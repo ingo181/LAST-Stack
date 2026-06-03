@@ -61,14 +61,16 @@ pub fn TaskListPage() -> impl IntoView {
     let edit_task_id = RwSignal::new(Option::<String>::None);
     let edit_task_data = RwSignal::new(Option::<shared::models::task::Task>::None);
     let edit_form_open = RwSignal::new(false);
+    let edit_key = RwSignal::new(0u32);
 
     let load_edit: Action<String, (), LocalStorage> = Action::new_unsync(move |id: &String| {
         let id = id.clone();
         async move {
             match crate::api::get_task(&id).await {
                 Ok(task) => {
+                    edit_task_data.set(None);           // NEU: erst auf None
                     edit_task_id.set(Some(task.id.clone()));
-                    edit_task_data.set(Some(task));
+                    edit_task_data.set(Some(task));     // dann neu setzen
                     edit_form_open.set(true);
                 }
                 Err(e) => { error.set(Some(e)); }
@@ -116,31 +118,36 @@ pub fn TaskListPage() -> impl IntoView {
                 on_submit
             />
 
-            // Edit Dialog
-            {move || edit_task_data.get().map(|task| view! {
-                <TaskFormDialog
-                    open=edit_form_open
-                    title="Edit Task"
-                    initial_subject=task.subject.clone()
-                    initial_company=task.party_id.clone().unwrap_or_default()
-                    initial_assigned_to=task.assigned_to.clone().unwrap_or_default()
-                    initial_priority=task.priority.to_string()
-                    initial_description=task.description.clone()
-                    on_submit=Callback::new(move |req: CreateTaskRequest| {
-                        if let Some(id) = edit_task_id.get_untracked() {
-                            leptos::task::spawn_local(async move {
-                                match crate::api::update_task(&id, req).await {
-                                    Ok(_)  => { fetch.dispatch(page.get_untracked()); }
-                                    Err(e) => { error.set(Some(e)); }
-                                }
-                            });
-                        }
-                        edit_task_id.set(None);
-                        edit_task_data.set(None);
-                        edit_form_open.set(false);
-                    })
-                />
-            })}
+    // Edit Dialog
+            {move || {
+                let key = edit_key.get();
+                edit_task_data.get().map(|task| view! {
+                    <TaskFormDialog
+                        open=edit_form_open
+                        title="Edit Task"
+                        initial_subject=task.subject.clone()
+                        initial_company=task.party_id.clone().unwrap_or_default()
+                        initial_assigned_to=task.assigned_to.clone().unwrap_or_default()
+                        initial_priority=task.priority.to_string()
+                        initial_status=task.progress_status.to_string()
+                        initial_description=task.description.clone()
+                        on_submit=Callback::new(move |req: CreateTaskRequest| {
+                            let _ = key;
+                            if let Some(id) = edit_task_id.get_untracked() {
+                                leptos::task::spawn_local(async move {
+                                    match crate::api::update_task(&id, req).await {
+                                        Ok(_)  => { fetch.dispatch(page.get_untracked()); }
+                                        Err(e) => { error.set(Some(e)); }
+                                    }
+                                });
+                            }
+                            edit_task_id.set(None);
+                            edit_task_data.set(None);
+                            edit_form_open.set(false);
+                        })
+                    />
+                })
+            }}
         </div>
     }
 }

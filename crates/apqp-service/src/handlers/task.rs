@@ -27,6 +27,8 @@ use crate::{db, state::{AppState, TenantContext}};
 #[derive(Debug, serde::Deserialize)]
 pub struct StatusTransitionRequest {
     pub status: String,
+    // TODO: reason für Audit-Trail bei Statuswechsel nutzen (APQP-Nachvollziehbarkeit)
+    #[allow(dead_code)]
     pub reason: Option<String>,
 }
 

@@ -61,7 +61,6 @@ pub mod api {
     }
 
     fn deserialize_u32<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-        use serde::de::IntoDeserializer;
         let s = String::deserialize(d)?;
         s.parse::<u32>().map_err(serde::de::Error::custom)
     }
@@ -291,11 +290,15 @@ pub mod task {
         pub id:              String,
         pub subject:         String,
         pub priority:        Priority,
+        #[serde(default)]
         pub progress_status: ProgressStatus,
+        #[serde(default)]
         pub risk_status:     RiskStatus,
         pub completion:      u8,
         pub planned_end:     Option<DateTime<Utc>>,
+        #[serde(default, deserialize_with = "deserialize_optional_string")]
         pub assigned_to:     Option<String>,
+        #[serde(default, deserialize_with = "deserialize_optional_string")]
         pub party_id:        Option<String>,
     }
 
@@ -454,6 +457,11 @@ pub mod task {
         }
     }
 
+    fn deserialize_optional_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+        let s = Option::<String>::deserialize(d)?;
+        Ok(s.filter(|v| !v.is_empty()))
+    }
+
     impl std::str::FromStr for Priority {
         type Err = String;
         fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -474,6 +482,7 @@ pub mod task {
         pub subject:         String,
         pub description:     Option<String>,
         pub priority:        Option<Priority>,
+        pub progress_status: Option<ProgressStatus>,
         pub dates:           Option<TaskDates>,
         pub assigned_to:     Option<String>,
         pub party_id:        Option<String>,

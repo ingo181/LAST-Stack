@@ -83,7 +83,8 @@ pub async fn list_tasks(
     let query = format!(
         "SELECT id, subject, priority, progress_status, risk_status,
                 completion, dates.planned_end AS planned_end,
-                assigned_to, party_id
+                <string> assigned_to AS assigned_to,
+                <string> party_id AS party_id
          FROM task WHERE {where_clause}
          ORDER BY dates.planned_end ASC
          LIMIT {limit} START {offset}"
@@ -91,7 +92,9 @@ pub async fn list_tasks(
     debug!(query = %query, "list_tasks");
 
     let mut res = db.query(query).await.map_err(db_err)?;
-    take_vec(&mut res, 0)
+    let raw: Vec<serde_json::Value> = res.take(0).map_err(db_err)?;
+    tracing::info!("raw list result: {}", serde_json::to_string(&raw).unwrap_or_default());
+    serde_json::from_value(serde_json::Value::Array(raw)).map_err(ser_err)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -205,51 +208,32 @@ pub async fn update_task(
     actor_id:  &str,
     tenant_id: Uuid,
 ) -> Result<Task> {
-    if let Some(ref new_status) = req.progress_status {
-        let current = get_task(db, id).await?;
-        if !current.progress_status.can_transition_to(new_status) {
-            return Err(AppError::InvalidTransition {
-                from: current.progress_status.to_string(),
-                to:   new_status.to_string(),
-            });
-        }
+    let mut set_fields: Vec<String> = vec!["updated_at = time::now()".to_owned()];
+
+    if let Some(ref v) = req.subject         { set_fields.push(format!("subject = '{v}'")); }
+    if let Some(ref v) = req.description     { set_fields.push(format!("description = '{v}'")); }
+    if let Some(ref v) = req.priority        { set_fields.push(format!("priority = '{v}'")); }
+    if let Some(ref v) = req.progress_status { set_fields.push(format!("progress_status = '{v}'")); }
+    if let Some(ref v) = req.risk_status     { set_fields.push(format!("risk_status = '{v}'")); }
+    if let Some(v)     = req.completion      { set_fields.push(format!("completion = {v}")); }
+    if let Some(ref v) = req.assigned_to     { set_fields.push(format!("assigned_to = '{v}'")); }
+    if let Some(ref v) = req.norm_refs       {
+        let json = serde_json::to_string(v).map_err(ser_err)?;
+        set_fields.push(format!("norm_refs = {json}"));
+    }
+    if let Some(ref v) = req.tags           {
+        let json = serde_json::to_string(v).map_err(ser_err)?;
+        set_fields.push(format!("tags = {json}"));
     }
 
-    let dates_json = req.dates
-        .map(|d| serde_json::to_value(d).map_err(ser_err))
-        .transpose()?
-        .unwrap_or_else(|| serde_json::json!({}));
-    let ext_json   = serde_json::to_value(&req.external_ref).map_err(ser_err)?;
+    let set_clause = set_fields.join(", ");
+    let query = format!(
+        "UPDATE type::record('task', $id) SET {set_clause} RETURN AFTER"
+    );
 
     let mut res = db
-        .query(
-            "UPDATE type::record('task', $id) MERGE {
-                subject:         $subject,
-                description:     $description,
-                priority:        $priority,
-                progress_status: $progress_status,
-                risk_status:     $risk_status,
-                completion:      $completion,
-                dates:           $dates,
-                assigned_to:     $assigned_to,
-                norm_refs:       $norm_refs,
-                tags:            $tags,
-                external_ref:    $external_ref,
-                updated_at:      time::now()
-            } RETURN AFTER",
-        )
-        .bind(("id".to_owned(),              id.to_owned()))
-        .bind(("subject".to_owned(),         req.subject.unwrap_or_default()))
-        .bind(("description".to_owned(),     req.description.unwrap_or_default()))
-        .bind(("priority".to_owned(),        req.priority.as_ref().map(|p| p.to_string())))
-        .bind(("progress_status".to_owned(), req.progress_status.as_ref().map(|s| s.to_string())))
-        .bind(("risk_status".to_owned(),     req.risk_status.as_ref().map(|r| r.to_string())))
-        .bind(("completion".to_owned(),      req.completion.unwrap_or(0)))
-        .bind(("dates".to_owned(),           dates_json))
-        .bind(("assigned_to".to_owned(),     req.assigned_to.unwrap_or_default()))
-        .bind(("norm_refs".to_owned(),       req.norm_refs.unwrap_or_default()))
-        .bind(("tags".to_owned(),            req.tags.unwrap_or_default()))
-        .bind(("external_ref".to_owned(),    ext_json))
+        .query(query)
+        .bind(("id".to_owned(), id.to_owned()))
         .await
         .map_err(db_err)?;
 
@@ -451,7 +435,7 @@ async fn write_outbox(
     aggregate:  String,
     event_type: String,
     payload:    &impl serde::Serialize,
-    actor_id:   String,
+    _actor_id:   String,
     tenant_id:  Uuid,
 ) -> Result<()> {
     let payload_json = serde_json::to_string(payload).map_err(ser_err)?;

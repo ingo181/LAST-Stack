@@ -4,7 +4,7 @@ use thaw::{
     Button, ButtonAppearance, Dialog, DialogBody, DialogSurface,
     DialogTitle, DialogActions, Field, Input, Select, Textarea,
 };
-use shared::models::task::{CreateTaskRequest, Priority};
+use shared::models::task::{CreateTaskRequest, Priority, ProgressStatus};
 
 #[component]
 pub fn TaskFormDialog(
@@ -16,12 +16,15 @@ pub fn TaskFormDialog(
     #[prop(optional)] initial_assigned_to: Option<String>,
     #[prop(optional)] initial_priority:    Option<String>,
     #[prop(optional)] initial_description: Option<String>,
+    #[prop(optional)] initial_status:      Option<String>,
 ) -> impl IntoView {
-    let subject      = RwSignal::new(initial_subject.unwrap_or_default());
+    let subject      = RwSignal::new(initial_subject.clone().unwrap_or_default());
     let company      = RwSignal::new(initial_company.unwrap_or_default());
     let assigned_to  = RwSignal::new(initial_assigned_to.unwrap_or_default());
-    let priority     = RwSignal::new(initial_priority.unwrap_or_else(|| "normal".into()));
-    let status       = RwSignal::new(String::from("open"));
+    let initial_priority_val = initial_priority.clone().unwrap_or_else(|| "normal".into());
+    let priority = RwSignal::new(initial_priority_val.clone());
+    let initial_status_val = initial_status.clone().unwrap_or_else(|| "open".into());
+    let status = RwSignal::new(initial_status_val.clone());
     let start_date   = RwSignal::new(String::new());
     let due_date_val = RwSignal::new(String::new());
     let details      = RwSignal::new(initial_description.unwrap_or_default());
@@ -51,17 +54,24 @@ pub fn TaskFormDialog(
             "normal" => Priority::Normal,
             _        => Priority::Low,
         };
+        let status_val = match status.get().as_str() {
+            "in_progress"          => Some(ProgressStatus::InProgress),
+            "waiting_for_feedback" => Some(ProgressStatus::WaitingForFeedback),
+            "completed"            => Some(ProgressStatus::Completed),
+            _                      => None,
+        };
         on_submit.run(CreateTaskRequest {
-            subject:        s,
-            description:    Some(details.get()).filter(|s| !s.is_empty()),
-            priority:       Some(priority_val),
-            assigned_to:    Some(assigned_to.get()).filter(|s| !s.is_empty()),
-            dates:          None,
-            party_id:       Some(company.get()).filter(|s| !s.is_empty()),
-            parent_task_id: None,
-            norm_refs:      None,
-            tags:           None,
-            external_ref:   None,
+            subject:         s,
+            description:     Some(details.get()).filter(|s| !s.is_empty()),
+            priority:        Some(priority_val),
+            progress_status: status_val,
+            assigned_to:     Some(assigned_to.get()).filter(|s| !s.is_empty()),
+            dates:           None,
+            party_id:        Some(company.get()).filter(|s| !s.is_empty()),
+            parent_task_id:  None,
+            norm_refs:       None,
+            tags:            None,
+            external_ref:    None,
         });
         reset();
         open.set(false);
@@ -95,7 +105,7 @@ pub fn TaskFormDialog(
                             <Field label="Priority">
                                 <div class="priority-select-wrap">
                                     <span class=move || format!("priority-indicator priority-{}", priority.get()) />
-                                    <Select value=priority>
+                                    <Select value=priority default_value=initial_priority_val.clone()>
                                         <option value="high">"High"</option>
                                         <option value="normal">"Normal"</option>
                                         <option value="low">"Low"</option>
@@ -103,7 +113,7 @@ pub fn TaskFormDialog(
                                 </div>
                             </Field>
                             <Field label="Status">
-                                <Select value=status>
+                                <Select value=status default_value=initial_status_val.clone()>
                                     <option value="open">"Open"</option>
                                     <option value="in_progress">"In Progress"</option>
                                     <option value="completed">"Completed"</option>

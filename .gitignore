@@ -26,3 +26,9 @@ Thumbs.db
 .idea/
 *.iml
 Dockerfile
+
+# Trunk/Leptos frontend build output
+crates/frontend/dist/
+
+# Rust compiler crash reports (ICE)
+rustc-ice-*.txt

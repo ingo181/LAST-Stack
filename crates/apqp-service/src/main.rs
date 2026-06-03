@@ -7,7 +7,7 @@ use axum::{
     Router,
 };
 use std::net::SocketAddr;
-use surrealdb::{engine::remote::ws::{Client, Ws}, opt::auth::Root, Surreal};
+use surrealdb::{engine::remote::ws::Ws, opt::auth::Root, Surreal};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
