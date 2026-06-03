@@ -32,3 +32,6 @@ crates/frontend/dist/
 
 # Rust compiler crash reports (ICE)
 rustc-ice-*.txt
+
+# Tauri generated files
+crates/desktop/gen/

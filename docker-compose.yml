@@ -135,11 +135,13 @@ services:
         UID: ${UID:-1000}
         GID: ${GID:-1000}
     container_name: last-dev
+    userns_mode: "keep-id"
     restart: "no"
     networks: [last-net]
     volumes:
       # Workspace — live gemountet
       # Cargo Registry Cache — überlebt Container-Neustarts
+      - .:/workspace:rw
       - cargo-registry:/home/dev/.cargo/registry
       - cargo-git:/home/dev/.cargo/git
       # Target Cache — verhindert Neu-Kompilierung bei jedem Start
@@ -153,7 +155,6 @@ services:
       RUST_LOG:     "apqp_service=debug,tower_http=info"
       KAFKA_BROKERS: last-kafka:29092
     ports:
-      - "3000:3000"   # trunk (Leptos frontend)
       - "8081:8081"   # apqp-service
     depends_on:
       - surreal-primary
