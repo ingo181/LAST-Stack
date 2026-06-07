@@ -1,5 +1,7 @@
 # LAST-Stack
+
 This is the last rust stack you need.
+
 The stack consists of the following components:
 - **L**eptos
 - **A**xum
@@ -11,7 +13,14 @@ The microservice architecture with docker/podman:
 - SurrealDB database instance (primary + read replica)
 - Apache Kafka (KRaft mode — no Zookeeper required)
 
-  ## Block diagram
+## Getting started
+
+See **[docs/dev-setup.md](docs/dev-setup.md)** for the full developer setup
+— prerequisites, starting the infrastructure, running the backend and
+frontend, and building the desktop app. Contributions are welcome; please
+read **[CONTRIBUTING.md](CONTRIBUTING.md)** first.
+
+## Block diagram
   <img width="1568" height="367" alt="image" src="https://github.com/user-attachments/assets/f9fcac30-d06c-4e27-be3b-f35c55702a5f" />
 
 ## Data flow diagram
@@ -23,6 +32,20 @@ The diagram shows the data flow from the request to data storage:
 - The tenant context is extracted from the JWT and forwarded to all services
 - SurrealDB processes the authorized requests in the tenant-specific database
 - The data is stored in the selected storage system (e.g., SurrealKV for local development)
+
+## Desktop app (Tauri)
+
+The same Leptos frontend runs both in the browser and as a native desktop
+app via Tauri 2.x — one UI codebase, multiple targets (Linux/Windows/macOS,
+with mobile prepared). The frontend is built with Leptos in CSR mode so the
+identical WASM bundle is served in the browser and embedded in the Tauri
+window.
+
+Because Tauri renders through the operating system's native WebView, the
+desktop app is built and run on the host while the backend keeps running in
+the container. See the **Desktop App Development** section in
+[docs/dev-setup.md](docs/dev-setup.md) for host prerequisites (Arch /
+Debian / Ubuntu / Fedora) and the run/build workflow.
 
 ## Multi-tenancy
 

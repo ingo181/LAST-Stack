@@ -114,7 +114,7 @@ PRs are merged by a maintainer once they pass CI and receive at least one approv
 
 ## Development Setup
 
-The fastest way to get started is with the included Dev Container. See the [README](last_readme.md#getting-started) for full instructions.
+The fastest way to get started is with the included Dev Container. See the [README](README.md) and [docs/dev-setup.md](docs/dev-setup.md) for full instructions.
 
 ### Manual setup (without Dev Container)
 
@@ -131,13 +131,13 @@ cargo install trunk cargo-leptos wasm-bindgen-cli
 cargo install cargo-watch
 
 # Start infrastructure (Kafka KRaft + SurrealDB — no Zookeeper needed)
-docker compose up kafka kafka-init surreal-primary -d
+podman-compose up kafka kafka-init surreal-primary -d
 ```
 
 ### Running a single service
 
 ```bash
-cargo watch -x "run -p user-service"
+cargo watch -x "run -p apqp-service"
 ```
 
 ### Running all tests
