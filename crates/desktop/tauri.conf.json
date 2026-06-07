@@ -4,9 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.laststack.tasks",
   "build": {
-    "beforeDevCommand": "sh -c 'cd /home/ingo/Development/LAST-Stack/crates/frontend && trunk serve'",
+    "beforeDevCommand": {
+      "cwd": "../frontend",
+      "script": "trunk serve"
+    },
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "sh -c 'cd /home/ingo/Development/LAST-Stack/crates/frontend && trunk build'",
+    "beforeBuildCommand": {
+      "cwd": "../frontend",
+      "script": "trunk build"
+    },
     "frontendDist": "../frontend/dist"
   },
   "app": {
